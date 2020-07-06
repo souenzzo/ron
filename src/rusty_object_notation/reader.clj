@@ -87,7 +87,7 @@
     :as    env}]
   (cond
     (contains? #{\: \,} dispatch-char) env
-    (whitespace? dispatch-char) (recur (do-next env))
+    (whitespace? dispatch-char) (comma-or-colon (do-next env))
     :else env))
 
 
@@ -99,9 +99,10 @@
                       \{ \}
                       \[ \]}
                      dispatch-char)]
-    (loop [{::keys [coll dispatch-char kv?]
+    (loop [{::keys [coll dispatch-char kv? raw-map?]
             :as    env} (assoc (do-next env)
                           ::kv? (= end-of-coll \})
+                          ::raw-map? (= end-of-coll \})
                           ::coll (transient []))]
       (cond
         (nil? dispatch-char) (throw (ex-info "eof" env))
@@ -121,19 +122,23 @@
                     kv? (= \: comma-or-colon)
                     {value ::value
                      :as   env} (if kv?
-                                  (read-impl (do-next env))
+                                  (read-impl (dissoc (do-next env)
+                                                     ::with-namespace))
                                   env)]
-                (recur (assoc env
-                         ::kv? kv?
-                         ::coll (conj! coll
-                                       (if kv?
-                                         [(if (and with-namespace
-                                                   (ident? key))
-                                            (keyword (str with-namespace)
-                                                     (str key))
-                                            key)
-                                          value]
-                                         key)))))))))
+                (recur
+                  (assoc env
+                    ::kv? kv?
+                    ::coll (conj! coll
+                                  (if kv?
+                                    [(if (and with-namespace
+                                              (ident? key))
+                                       (keyword (str with-namespace)
+                                                (str key))
+                                       (if raw-map?
+                                         key
+                                         (keyword key)))
+                                     value]
+                                    key)))))))))
 
 
 (defn read-impl
@@ -141,7 +146,7 @@
     :as    env}]
   (cond
     (contains? #{\:} dispatch-char) (assoc env ::value with-namespace)
-    (whitespace? dispatch-char) (recur (do-next env))
+    (whitespace? dispatch-char) (read-impl (do-next env))
     (contains? #{\"} dispatch-char) (string-reader-impl env)
     (contains? #{\t} dispatch-char) (true-reader-impl env)
     (contains? #{\f} dispatch-char) (false-reader-impl env)

@@ -78,7 +78,49 @@
            (-> {::ron.reader/dispatch-char \{
                 ::ron.reader/next-chars    [\}]}
                ron.reader/collection-reader-impl
-               (dissoc ::ron.reader/coll)
+               (dissoc ::ron.reader/coll
+                       ::ron.reader/raw-map?
+                       ::ron.reader/with-namespace)
+               #_(doto clojure.pprint/pprint)))))
+  (testing
+    "GameConfig simple"
+    (is (= {::ron.reader/dispatch-char nil,
+            ::ron.reader/next-chars    (),
+            ::ron.reader/kv?           true,
+            ::ron.reader/value         {:window_size 42}}
+           (-> {::ron.reader/dispatch-char \(
+                ::ron.reader/next-chars    "window_size: 42)"}
+               ron.reader/collection-reader-impl
+               (dissoc ::ron.reader/coll
+                       ::ron.reader/raw-map?
+                       ::ron.reader/with-namespace)
+               #_(doto clojure.pprint/pprint)))))
+  (testing
+    "GameConfig tuple"
+    (is (= {::ron.reader/dispatch-char nil,
+            ::ron.reader/next-chars    (),
+            ::ron.reader/kv?           true,
+            ::ron.reader/value         {:window_size [800 600]}}
+           (-> {::ron.reader/dispatch-char \(
+                ::ron.reader/next-chars    "window_size: (800, 600))"}
+               ron.reader/collection-reader-impl
+               (dissoc ::ron.reader/coll
+                       ::ron.reader/raw-map?
+                       ::ron.reader/with-namespace)
+               #_(doto clojure.pprint/pprint)))))
+  (testing
+    "GameConfig namespaced"
+    (is (= {::ron.reader/dispatch-char nil,
+            ::ron.reader/next-chars    (),
+            ::ron.reader/kv?           true,
+            ::ron.reader/value         {:GameConfig/window_size [800 600]}}
+           (-> {::ron.reader/dispatch-char  \(
+                ::ron.reader/with-namespace "GameConfig"
+                ::ron.reader/next-chars     "window_size: (800, 600))"}
+               ron.reader/collection-reader-impl
+               (dissoc ::ron.reader/coll
+                       ::ron.reader/raw-map?
+                       ::ron.reader/with-namespace)
                #_(doto clojure.pprint/pprint))))))
 
 
@@ -95,5 +137,20 @@
                #_(doto clojure.pprint/pprint))))
     (is (= ["a" 1]
            (-> "[\"a\", 1]"
+               ron.reader/read-string
+               #_(doto clojure.pprint/pprint))))))
+
+(deftest ron-hello
+  (testing
+    "Root tuple"
+    (is (= {:window_size [800 600]}
+           (-> "(window_size: (800, 600))"
+               ron.reader/read-string
+               #_(doto clojure.pprint/pprint)))))
+  (testing
+    "Gameconfig"
+    (is (= {:GameConfig/window_size  [800 600]
+            :GameConfig/window_title "PAC-MAN"}
+           (-> "GameConfig(window_size: (800, 600), window_title: \"PAC-MAN\")"
                ron.reader/read-string
                #_(doto clojure.pprint/pprint))))))
